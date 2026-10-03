@@ -1,5 +1,5 @@
 services:
-  # Servicio de Base de Datos (PostgreSQL)
+  # Base de Datos (PostgreSQL)
   db:
     image: postgres:15
     volumes:
@@ -14,11 +14,9 @@ services:
       timeout: 5s
       retries: 10
 
-  # Servicio de tu API Django (ahora con Gunicorn, aislado del exterior)
+  # El Monolito (v1): Django + Gunicorn, aislado del exterior
   web:
     build: .
-    # CAMBIO 1: Migra, siembra datos y arranca con Gunicorn (servidor de produccion).
-    # 'Tienda' es la carpeta donde esta wsgi.py en este proyecto.
     command: >
       sh -c "python manage.py migrate &&
              python manage.py seed &&
@@ -34,20 +32,23 @@ services:
       - DB_PASSWORD=secret_password
       - DB_HOST=db
       - DB_PORT=5432
-    # NOTA: Ya no hay seccion 'ports' aqui. Django esta aislado:
-    # solo Nginx puede hablar con el por la red interna de Docker.
+    # Sin 'ports': Django esta aislado, solo Nginx le habla.
 
-  # CAMBIO 2: Agregamos el servicio Nginx (Proxy Inverso)
+  # El Microservicio (v2): Flask - EL ESTRANGULADOR
+  pagos_flask:
+    build: ./microservicio_pagos
+    # Sin 'ports': aislado, solo accesible a traves de Nginx (puerto 80).
+
+  # Proxy Inverso: unico que da la cara a internet
   nginx:
     image: nginx:1.25-alpine
     ports:
-      - "80:80"  # Nginx es el unico que da la cara a internet
+      - "80:80"
     volumes:
-      # Inyectamos nuestro archivo de configuracion en el contenedor
       - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf
     depends_on:
       - web
+      - pagos_flask
 
-# Definición del volumen persistente
 volumes:
   postgres_data:
